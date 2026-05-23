@@ -1,26 +1,36 @@
 # openclaw-gateway-indicator
 
-System tray indicator for [OpenClaw](https://github.com/openclaw/openclaw) gateway service status on Linux (X11/GNOME).
+A system tray indicator for the [OpenClaw](https://github.com/openclaw/openclaw) personal AI assistant gateway, running on Linux (X11/GNOME).
 
-## What it does
+OpenClaw runs as a background daemon that bridges your AI agents to messaging platforms (Telegram, Gmail, etc.). This indicator gives you a persistent at-a-glance health check in your panel without having to open a terminal.
 
-- Shows a 🦞 lobster in the system tray that color-shifts with service state:
-  - **Green lobster** — gateway is active
-  - **Amber/gold lobster** — gateway is activating, reloading, or deactivating
-  - **Red lobster** (natural) — gateway is down
-- Right-click menu: Start / Stop / Restart / View Logs / Quit
-- Menu label shows live uptime when running (`Running — up 2h 14m`)
-- Desktop notification on state transitions
-- Hover tooltip shows gateway port and openclaw version
+## The lobster
+
+The tray icon is a 🦞 lobster whose color shifts with the gateway's state:
+
+| Color | Meaning |
+|-------|---------|
+| 🟢 Green lobster | Gateway is active and running |
+| 🟡 Amber lobster | Gateway is starting, restarting, or shutting down |
+| 🔴 Red lobster (natural) | Gateway is down |
+
+Color is applied by hue-rotating the emoji's pixel data at startup — no external image assets needed.
+
+## Features
+
+- Right-click menu: **Start / Stop / Restart / View Logs** / Quit
+- Live uptime in the menu label (`Running — up 2h 14m`)
+- Desktop notification when the service changes state
+- Hover tooltip showing gateway port and openclaw version
+- Graceful fallback to plain colored circles if the emoji font is unavailable
 
 ## Requirements
 
-- Ubuntu / Debian with GNOME or XFCE (X11)
-- `python3-gi` with AyatanaAppIndicator3 bindings
-- `gir1.2-ayatanaappindicator3-0.1`
-- `gir1.2-notify-0.7`
-- `python3-pil` (Pillow)
-- Noto Color Emoji font (`fonts-noto-color-emoji`)
+- Linux with X11 and a panel that supports AppIndicator (GNOME with AppIndicator extension, XFCE, KDE, etc.)
+- Python 3 (system install — `/usr/bin/python3`)
+- OpenClaw installed and configured with a `openclaw-gateway.service` user systemd unit
+
+### Python dependencies
 
 ```
 sudo apt install python3-gi gir1.2-ayatanaappindicator3-0.1 gir1.2-notify-0.7 python3-pil fonts-noto-color-emoji
@@ -28,9 +38,13 @@ sudo apt install python3-gi gir1.2-ayatanaappindicator3-0.1 gir1.2-notify-0.7 py
 
 ## Installation
 
+Copy the script into your OpenClaw scripts directory (or anywhere convenient):
+
 ```
 cp gateway-indicator.py ~/.openclaw/scripts/
 ```
+
+### Autostart (GNOME/XFCE)
 
 Create `~/.config/autostart/openclaw-gateway-indicator.desktop`:
 
@@ -43,14 +57,31 @@ Terminal=false
 X-GNOME-Autostart-enabled=true
 ```
 
-Or launch manually:
+Replace `YOUR_USER` with your actual username.
+
+### Manual launch
 
 ```
 /usr/bin/python3 gateway-indicator.py &
 ```
 
-## Notes
+## Configuration
 
-- Hue shift values for yellow (+50°) and green (+100°) are tunable constants at the top of the script.
-- Falls back to plain colored circles if Pillow or the Noto Color Emoji font is unavailable.
-- Polls `systemctl --user is-active openclaw-gateway.service` every 5 seconds.
+Two constants near the top of the script are the main things you might want to adjust:
+
+```python
+SERVICE = "openclaw-gateway.service"   # systemd user service name
+```
+
+```python
+# Hue shift applied to the lobster emoji per state (degrees, 0–360)
+shifts = {"red": 0, "yellow": 50, "green": 100}
+```
+
+The hue values assume a naturally orange-red lobster (~20° hue). Increasing the green shift pushes it further toward true green; decreasing the yellow shift keeps it more orange.
+
+## How it works
+
+At startup, the indicator renders the 🦞 emoji via Pillow at the font's native 136×128px bitmap size, scales it to 48×48, then produces three hue-rotated copies saved as PNG tempfiles. These are hot-swapped as the service state changes. On exit, the tempfiles are cleaned up.
+
+Service state is polled every 5 seconds via `systemctl --user is-active`.
