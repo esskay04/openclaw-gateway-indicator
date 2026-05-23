@@ -17,6 +17,7 @@ from gi.repository import Gtk, GLib, AyatanaAppIndicator3, Notify
 SERVICE = "openclaw-gateway.service"
 
 icon_files = {}
+_gateway_port = None   # cached at startup by GatewayIndicator.__init__
 
 # Fallback SVG circles used if Pango/Cairo emoji rendering fails
 _FALLBACK_SVGS = {
@@ -79,6 +80,16 @@ def build_icons():
             icon_files[name] = f.name
 
 
+def _port_accepting(port, timeout=1.5):
+    """Return True if localhost:port accepts a TCP connection."""
+    import socket
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
 def gateway_state():
     try:
         r = subprocess.run(
@@ -86,11 +97,14 @@ def gateway_state():
             capture_output=True, text=True, timeout=3,
         )
         s = r.stdout.strip()
-        if s == "active":
-            return "green"
         if s in ("activating", "reloading", "deactivating"):
             return "yellow"
-        return "red"
+        if s != "active":
+            return "red"
+        # Process is running — confirm it's actually accepting connections
+        if _gateway_port and not _port_accepting(_gateway_port):
+            return "yellow"
+        return "green"
     except Exception:
         return "red"
 
@@ -166,9 +180,14 @@ def svc(*args):
 
 class GatewayIndicator:
     def __init__(self):
+        global _gateway_port
         Notify.init("OpenClaw Gateway")
         build_icons()
         self.current = None
+        try:
+            _gateway_port = int(get_port())
+        except (ValueError, TypeError):
+            _gateway_port = None
 
         self.ind = AyatanaAppIndicator3.Indicator.new(
             "openclaw-gateway",
