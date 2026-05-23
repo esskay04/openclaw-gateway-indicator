@@ -152,18 +152,52 @@ def get_version():
         return "?"
 
 
-def open_logs():
-    cmd_base = ["journalctl", "--user", "-u", SERVICE, "-f"]
-    for term in [
-        ["gnome-terminal", "--"] + cmd_base,
-        ["xfce4-terminal", "-e", " ".join(cmd_base)],
-        ["xterm", "-e", " ".join(cmd_base)],
-    ]:
-        try:
-            subprocess.Popen(term)
-            return
-        except FileNotFoundError:
-            continue
+def open_log_window():
+    win = Gtk.Window(title="OpenClaw Gateway — Live Log")
+    win.set_default_size(860, 420)
+
+    tv = Gtk.TextView()
+    tv.set_editable(False)
+    tv.set_cursor_visible(False)
+    tv.set_monospace(True)
+    tv.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+    buf = tv.get_buffer()
+
+    sw = Gtk.ScrolledWindow()
+    sw.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+    sw.add(tv)
+    win.add(sw)
+    win.show_all()
+
+    proc = subprocess.Popen(
+        ["journalctl", "--user", "-u", SERVICE, "-f", "--no-pager", "-n", "200"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    adj = sw.get_vadjustment()
+
+    def _scroll_to_end():
+        adj.set_value(adj.get_upper() - adj.get_page_size())
+        return False
+
+    def on_output(source, condition):
+        if condition & GLib.IO_IN:
+            line = source.readline()
+            if line:
+                end = buf.get_end_iter()
+                buf.insert(end, line.decode("utf-8", errors="replace"))
+                GLib.idle_add(_scroll_to_end)
+        if condition & (GLib.IO_HUP | GLib.IO_ERR):
+            return False
+        return True
+
+    GLib.io_add_watch(proc.stdout, GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR, on_output)
+
+    def on_destroy(_):
+        proc.terminate()
+
+    win.connect("destroy", on_destroy)
 
 
 def notify_state(description):
@@ -209,7 +243,7 @@ class GatewayIndicator:
             menu.append(item)
 
         logs_item = Gtk.MenuItem(label="View Logs")
-        logs_item.connect("activate", lambda _: open_logs())
+        logs_item.connect("activate", lambda _: open_log_window())
         menu.append(logs_item)
 
         menu.append(Gtk.SeparatorMenuItem())
