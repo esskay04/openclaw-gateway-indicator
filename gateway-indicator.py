@@ -162,6 +162,7 @@ def open_log_window():
     tv.set_monospace(True)
     tv.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
     buf = tv.get_buffer()
+    err_tag = buf.create_tag("error", foreground="#e74c3c")
 
     sw = Gtk.ScrolledWindow()
     sw.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
@@ -181,12 +182,18 @@ def open_log_window():
         adj.set_value(adj.get_upper() - adj.get_page_size())
         return False
 
+    _ERROR_KEYWORDS = ("error", "critical", "exception", "traceback", "failed")
+
     def on_output(source, condition):
         if condition & GLib.IO_IN:
             line = source.readline()
             if line:
+                text = line.decode("utf-8", errors="replace")
                 end = buf.get_end_iter()
-                buf.insert(end, line.decode("utf-8", errors="replace"))
+                if any(kw in text.lower() for kw in _ERROR_KEYWORDS):
+                    buf.insert_with_tags(end, text, err_tag)
+                else:
+                    buf.insert(end, text)
                 GLib.idle_add(_scroll_to_end)
         if condition & (GLib.IO_HUP | GLib.IO_ERR):
             return False
