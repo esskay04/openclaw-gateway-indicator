@@ -162,7 +162,11 @@ def open_log_window():
     tv.set_monospace(True)
     tv.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
     buf = tv.get_buffer()
-    err_tag = buf.create_tag("error", foreground="#e74c3c")
+    err_meta_tag = buf.create_tag("error_meta", foreground="#e74c3c")
+    err_body_tag = buf.create_tag("error_body", foreground="#e67e22")
+
+    # Matches: "MMM DD HH:MM:SS hostname unit[pid]: " as group 1, rest as group 2
+    _PREFIX_RE = re.compile(r'^(.*?\[\d+\]: )(.*)', re.DOTALL)
 
     sw = Gtk.ScrolledWindow()
     sw.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
@@ -189,11 +193,15 @@ def open_log_window():
             line = source.readline()
             if line:
                 text = line.decode("utf-8", errors="replace")
-                end = buf.get_end_iter()
                 if any(kw in text.lower() for kw in _ERROR_KEYWORDS):
-                    buf.insert_with_tags(end, text, err_tag)
+                    m = _PREFIX_RE.match(text)
+                    if m:
+                        buf.insert_with_tags(buf.get_end_iter(), m.group(1), err_meta_tag)
+                        buf.insert_with_tags(buf.get_end_iter(), m.group(2), err_body_tag)
+                    else:
+                        buf.insert_with_tags(buf.get_end_iter(), text, err_meta_tag)
                 else:
-                    buf.insert(end, text)
+                    buf.insert(buf.get_end_iter(), text)
                 GLib.idle_add(_scroll_to_end)
         if condition & (GLib.IO_HUP | GLib.IO_ERR):
             return False
