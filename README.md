@@ -1,8 +1,12 @@
 # openclaw-gateway-indicator
 
+[![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+
 A system tray indicator for the [OpenClaw](https://github.com/openclaw/openclaw) personal AI assistant gateway, running on Linux (X11/GNOME).
 
 OpenClaw runs as a background daemon that bridges your AI agents to messaging platforms (Telegram, Gmail, etc.). This indicator gives you a persistent at-a-glance health check in your panel without having to open a terminal.
+
+![Tray menu showing OpenClaw Gateway running with uptime](tray-menu-running.png)
 
 ## The lobster
 
@@ -85,3 +89,7 @@ The hue values assume a naturally orange-red lobster (~20° hue). Increasing the
 At startup, the indicator renders the 🦞 emoji via Pillow at the font's native 136×128px bitmap size, scales it to 48×48, then produces three hue-rotated copies saved as PNG tempfiles. These are hot-swapped as the service state changes. On exit, the tempfiles are cleaned up.
 
 Service state is polled every 5 seconds via `systemctl --user is-active`.
+
+## License
+
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — free to use, adapt, and redistribute with attribution.
