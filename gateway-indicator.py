@@ -170,7 +170,21 @@ def _port_accepting(port, timeout=1.5):
         return False
 
 
+def _internet_ok(timeout=1.0):
+    """Return True if we can reach a well-known external host."""
+    import socket
+    try:
+        socket.create_connection(("1.1.1.1", 53), timeout=timeout).close()
+        return True
+    except OSError:
+        return False
+
+
 def gateway_state():
+    """Return 'green', 'yellow', 'red', or 'offline'.
+
+    'offline' = service active and port open, but no internet reachability.
+    """
     try:
         r = subprocess.run(
             ["systemctl", "--user", "is-active", SERVICE],
@@ -181,9 +195,11 @@ def gateway_state():
             return "yellow"
         if s != "active":
             return "red"
-        # Process is running — confirm it's actually accepting connections
+        # Service running — check local port first (fast), then internet (slow-ish)
         if _gateway_port and not _port_accepting(_gateway_port):
             return "yellow"
+        if not _internet_ok():
+            return "offline"
         return "green"
     except Exception:
         return "red"
@@ -621,19 +637,21 @@ class GatewayIndicator:
 
     def poll(self):
         state = gateway_state()
-        uptime = get_uptime() if state == "green" else ""
+        uptime = get_uptime() if state in ("green", "offline") else ""
         label_map = {
-            "green":  f"Running{' — ' + uptime if uptime else ''}",
-            "yellow": "Restarting…",
-            "red":    "Down",
+            "green":   f"Running{' — ' + uptime if uptime else ''}",
+            "yellow":  "Restarting…",
+            "red":     "Down",
+            "offline": f"Running — No Internet{' — ' + uptime if uptime else ''}",
         }
+        icon_for = {"green": "green", "yellow": "yellow", "red": "red", "offline": "yellow"}
         self.status_item.set_label(f"OpenClaw Gateway — {label_map[state]}")
 
         if state != self.current:
             if self.current is not None:
                 notify_state(label_map[state])
             self.current = state
-            self.ind.set_icon_full(icon_files[state], state)
+            self.ind.set_icon_full(icon_files[icon_for[state]], icon_for[state])
         return True
 
 
